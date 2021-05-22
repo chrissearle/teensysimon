@@ -9,8 +9,6 @@ enum Colours
   YELLOW
 };
 
-const char *colourNames[] = {"RED", "GREEN", "BLUE", "YELLOW"};
-
 #define LED_RED 15
 #define LED_GREEN 16
 #define LED_BLUE 17
@@ -26,23 +24,13 @@ const char *colourNames[] = {"RED", "GREEN", "BLUE", "YELLOW"};
 const int MAX_LEVEL = 100;
 Colour *colours[4];
 
-int sequence[MAX_LEVEL]; 
+int sequence[MAX_LEVEL];
 int gamer_sequence[MAX_LEVEL];
 
 int level = 1;
 int velocity = 1000;
 
-void flashLeds()
-{
-  for (int colour = RED; colour <= YELLOW; colour++)
-  {
-    colours[colour]->ledOn();
-    delay(50);
-    colours[colour]->ledOff();
-  }
-}
-
-void ledsOn()
+void allLedsOn()
 {
   for (int colour = RED; colour <= YELLOW; colour++)
   {
@@ -50,7 +38,7 @@ void ledsOn()
   }
 }
 
-void ledsOff()
+void allLedsOff()
 {
   for (int colour = RED; colour <= YELLOW; colour++)
   {
@@ -58,7 +46,31 @@ void ledsOff()
   }
 }
 
-void generate_sequence()
+void flashAllLedsAndBeep(int note)
+{
+  allLedsOn();
+  tone(SOUND, note);
+  delay(500);
+
+  allLedsOff();
+  noTone(SOUND);
+  delay(250);
+}
+
+void flashSingleLedAndBeep(int colour, int duration)
+{
+  Colour *c = colours[colour];
+
+  c->ledOn();
+  tone(SOUND, c->getNote());
+  delay(duration);
+
+  c->ledOff();
+  noTone(SOUND);
+  delay(200);
+}
+
+void generateSequence()
 {
   randomSeed(millis());
 
@@ -67,10 +79,15 @@ void generate_sequence()
     sequence[i] = random(RED, YELLOW + 1);
   }
 
-  flashLeds();
+  for (int colour = RED; colour <= YELLOW; colour++)
+  {
+    colours[colour]->ledOn();
+    delay(50);
+    colours[colour]->ledOff();
+  }
 }
 
-void goBeep()
+void readyBeep()
 {
   tone(SOUND, 500);
   delay(200);
@@ -78,27 +95,19 @@ void goBeep()
   delay(200);
 }
 
-void show_sequence()
+void showSequence()
 {
-  ledsOff();
-
-  Serial.println("Showing Sequence - seq");
+  allLedsOff();
 
   for (int cIndex = 0; cIndex < level; cIndex++)
   {
-    Colour *c = colours[sequence[cIndex]];
-
-    c->ledOn();
-    tone(SOUND, c->getNote());
-    delay(velocity);
-    c->ledOff();
-    noTone(SOUND);
-    delay(200);
+    flashSingleLedAndBeep(sequence[cIndex], velocity);
   }
-  goBeep();
+
+  readyBeep();
 }
 
-void right_sequence()
+void sequenceCorrect()
 {
   if (level < MAX_LEVEL)
   {
@@ -106,27 +115,27 @@ void right_sequence()
   }
 
   velocity -= 50;
-  goBeep();
+
+  readyBeep();
 }
 
-void wrong_sequence()
+void sequenceError()
 {
   for (int blinkCounter = 0; blinkCounter < 3; blinkCounter++)
   {
-    ledsOn();
-    tone(SOUND, 233);
-    delay(500);
+    flashAllLedsAndBeep(233);
+  }
 
-    ledsOff();
-    noTone(SOUND);
-    delay(250);
+  for (int levelCounter = 0; levelCounter < level - 1; levelCounter++)
+  {
+    flashAllLedsAndBeep(600);
   }
 
   level = 1;
   velocity = 1000;
 }
 
-void get_sequence()
+void readSequence()
 {
   int flag = 0;
 
@@ -147,17 +156,14 @@ void get_sequence()
 
         if (c->isBtnPressed())
         {
-          c->ledOn();
-          tone(SOUND, c->getNote());
-          delay(velocity);
-          noTone(SOUND);
+          flashSingleLedAndBeep(colour, velocity);
+
           gamer_sequence[levelIndex] = colour;
           flag = 1;
-          delay(200);
 
           if (gamer_sequence[levelIndex] != sequence[levelIndex])
           {
-            wrong_sequence();
+            sequenceError();
             return;
           }
           c->ledOff();
@@ -165,13 +171,11 @@ void get_sequence()
       }
     }
   }
-  right_sequence();
+  sequenceCorrect();
 }
 
 void setup()
 {
-  Serial.begin(115200);
-
   colours[RED] = new Colour(LED_RED, BTN_RED, 349);
   colours[GREEN] = new Colour(LED_GREEN, BTN_GREEN, 329);
   colours[BLUE] = new Colour(LED_BLUE, BTN_BLUE, 293);
@@ -184,7 +188,7 @@ void loop()
 {
   if (level == 1)
   {
-    generate_sequence();
+    generateSequence();
   }
 
   //start button == first button in the list
@@ -194,7 +198,7 @@ void loop()
     {
       delay(200);
     }
-    show_sequence();
-    get_sequence();
+    showSequence();
+    readSequence();
   }
 }
